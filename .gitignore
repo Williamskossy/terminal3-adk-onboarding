@@ -1,0 +1,18 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# upstream clones and build trees (not our work; see README)
+z-tenant-flight/
+docs/
+node_modules/
+target/
+
+# intermediate render output
+evidence/html/
+
+# local logs from setup runs
+install.log
+repair.log
+build.log

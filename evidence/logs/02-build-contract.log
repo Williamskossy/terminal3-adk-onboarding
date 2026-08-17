@@ -1,0 +1,17 @@
+# Walkthrough step 1-2: write + build the TEE contract — captured 2026-08-17 05:26:44 UTC
+
+$ git -C z-tenant-flight log --oneline -1
+  1226b39 docs: fix architecture diagram rendering (#5)
+
+$ cargo build --target wasm32-wasip2 --release
+  (already built; showing the artifact and verifying it is a component)
+
+$ ls -lh artifacts/z_tenant_flight.wasm
+  -rwxrwxrwx 1 kossy kossy 194K Aug 16 21:28 /mnt/c/Users/USER/terminal3-adk-bounty/artifacts/z_tenant_flight.wasm
+
+$ xxd -l 8 -p artifacts/z_tenant_flight.wasm
+  0061736d0d000100
+  -> WASM COMPONENT (layer=1) — valid for registration
+
+$ sha256sum artifacts/z_tenant_flight.wasm
+  edf634e46265bdfcb1c236190b7a7d4110ff6952e04fcec32054ccc4cd69955d  artifacts/z_tenant_flight.wasm

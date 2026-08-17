@@ -1,0 +1,13 @@
+# Toolchain — captured 2026-08-17 05:26:42 UTC
+# host: Windows 11 + WSL2
+
+distro:  Ubuntu 24.04.3 LTS
+rustc:   rustc 1.97.1 (8bab26f4f 2026-07-14)
+cargo:   cargo 1.97.1 (c980f4866 2026-06-30)
+rustup:  rustup 1.29.0 (28d1352db 2026-03-05)
+node:    v22.23.2
+npm:     10.9.8
+
+$ rustup target list --installed
+  wasm32-wasip2
+  x86_64-unknown-linux-gnu

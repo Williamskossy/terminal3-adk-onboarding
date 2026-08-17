@@ -1,0 +1,8 @@
+* text=auto
+
+# must stay LF or they break when run in WSL/Linux
+*.sh text eol=lf
+
+# binary
+*.wasm binary
+*.png binary

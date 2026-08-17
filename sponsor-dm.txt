@@ -1,0 +1,57 @@
+Hi — working through the ADK walkthrough for the Superteam bounty. Two blockers on
+testnet you'll want to know about, plus a docs fix. Happy to give more detail.
+
+DID: did:t3n:039b91465f60d1a39e2297dd04db188a2cef4736
+SDK: @terminal3/t3n-sdk 4.39.1 (latest published)
+Node: https://cn-api.sg.testnet.t3n.terminal3.io
+Trust manifest: version 1786457685, signed 2026-08-11T14:14:45Z
+
+--- 1. BLOCKER: every control RPC rejected with `missing field script_name` ---
+
+Both of these fail server-side with the same error:
+
+  tenant.tenant.me()
+    -> Invalid action request: missing field `script_name` at line 1 column 105
+       requestId: 5fafa1df-f268-46a6-8407-308b0a1eaa5e
+
+  tenant.contracts.register({ tail, version, wasm })
+    -> Invalid action request: missing field `script_name` at line 1 column 189
+       requestId: eb753b64-c2e6-4bfb-8d90-debbfd442097
+
+Both rpcMethod: action.execute, httpStatus: -32602.
+
+This blocks registration, so walkthrough steps 3-5 are unreachable. The contract
+itself builds fine (194KB WASM component, header 0061736d0d000100, layer=1).
+
+It doesn't look like a caller mistake: the documented register API is
+{ tail, version, wasm } with no way to pass script_name; in the shipped
+index.d.ts, script_name only appears in ChargeReason (a token.get-usage
+*response* type); and the strings script_name / scriptName don't appear in
+dist/index.esm.js at all. Looks like a wire-format skew between SDK 4.39.1 and
+the deployed testnet node.
+
+Is there a config field I should be setting (tenantContractId?), or is the node
+ahead of the published SDK? Both request IDs above should be in your logs.
+
+--- 2. DOCS: quickstart code can't run — trustAnchor missing ---
+
+The quickstart's `new T3nClient({ wasmComponent, handlers })` throws:
+
+  T3nConfigError: T3nClient: `trustAnchor` is required ...
+
+`trustAnchor` isn't mentioned on any ADK docs page. Your SDK README has the
+right answer but the docs don't point to it:
+
+  trustAnchor: await fetchTrustedManifest("testnet")
+
+Worth adding to the quickstart — right now the error message's suggested
+alternative, { unsafe_trust_server: true }, is the path of least resistance, and
+that silently turns off DKG attestation verification against a real node.
+
+--- 3. DOCS: tenant.me() should be tenant.tenant.me() ---
+
+set-up-dev-env says `await tenant.me()` -> TypeError: tenant.me is not a
+function. In 4.39.1, me() is on TenantNamespace, exposed as `.tenant`. The
+register-contract troubleshooting table also says "Confirm with tenant.me()".
+
+Thanks — happy to test any fix quickly.

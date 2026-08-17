@@ -1,0 +1,49 @@
+# Quickstart (connect/authenticate) + Walkthrough step 3 (register)
+# captured 2026-08-17 05:26:44 UTC
+# NOTE: the SDK ships obfuscated; when it throws, its stack dumps the whole
+#       minified bundle as one line. Lines >600 chars are filtered below.
+
+=== node ===
+  node v22.23.2  npm 10.9.8
+  api key loaded: 66 chars (value never printed)
+  package.json already present (type=module)
+  deps already installed
+
+=== installed SDK version ===
+  @terminal3/t3n-sdk 4.39.1
+
+=== running quickstart.ts ===
+environment: testnet | node: https://cn-api.sg.testnet.t3n.terminal3.io
+loading WASM component...
+eth address: 0x7bf3684426dd06e9e69da8f18a3d1d93ffcc0150
+trust anchor: fetched and signature-verified
+  expected_peer_ids: 3
+  rtmr3_allowlist:   1
+  source: {"manifest_version":1786457685,"signed_at":"2026-08-11T14:14:45Z","url":"https://cn-api.sg.testnet.t3n.terminal3.io/api/trust-manifest"}
+handshaking...
+Connected as: did:t3n:039b91465f60d1a39e2297dd04db188a2cef4736
+!! tenant.tenant.me() failed (non-fatal, continuing):
+   RpcError: Invalid action request: missing field `script_name` at line 1 column 105
+   node requestId: eee34a47-d631-47bf-9455-cc8f466dca30
+TenantClient ready.
+
+registering ../artifacts/z_tenant_flight.wasm (197904 bytes) as tail 'flight' v0.1.0...
+/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/node_modules/@terminal3/t3n-sdk/dist/index.esm.js:2
+
+RpcError: RPC Error: Invalid action request: missing field `script_name` at line 1 column 189 [c18753da-5d80-4ab1-9676-1258623e4811]
+    at T3nClient.throwIfRpcError (/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/node_modules/@terminal3/t3n-sdk/dist/index.esm.js:2:1162244)
+    at T3nClient.sendRpcRequest (/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/node_modules/@terminal3/t3n-sdk/dist/index.esm.js:2:1159000)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async T3nClient.executeWithBlob (/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/node_modules/@terminal3/t3n-sdk/dist/index.esm.js:2:1140646)
+    at async TenantContractsNamespace.register (/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/node_modules/@terminal3/t3n-sdk/dist/index.esm.js:2:1223574)
+    at async <anonymous> (/mnt/c/Users/USER/terminal3-adk-bounty/my-t3n-app/quickstart.ts:110:16) {
+  code: 'RPC_ERROR',
+  rpcMethod: 'action.execute',
+  httpStatus: -32602,
+  detail: 'Invalid action request: missing field `script_name` at line 1 column 189',
+  requestId: 'c18753da-5d80-4ab1-9676-1258623e4811'
+}
+
+Node.js v22.23.2
+
+=== exit code: 1 ===
