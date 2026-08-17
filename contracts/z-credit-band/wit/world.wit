@@ -1,0 +1,36 @@
+package z:credit-band@0.1.0;
+
+/// Confidential credit assessment.
+///
+/// A lender wants to know whether someone is creditworthy. Today that means the
+/// borrower hands over months of raw bank statements, and the lender — plus every
+/// system it touches — holds them forever.
+///
+/// This contract inverts that. It fetches the statement inside the enclave using
+/// `http-with-placeholders` (so the borrower's identifiers are resolved host-side
+/// and never enter WASM as arguments), scores it, and returns **only a band**.
+/// The raw transactions never leave the enclave and are never persisted: only the
+/// derived band is written to tenant KV.
+world credit-band {
+  import host:tenant/tenant-context@1.0.0;
+  import host:interfaces/logging@2.1.0;
+  import host:interfaces/kv-store@2.1.0;
+  import host:interfaces/http-with-placeholders@2.1.0;
+
+  export contracts;
+}
+
+interface contracts {
+  record generic-input {
+    input:        option<list<u8>>,
+    user-profile: option<list<u8>>,
+    context:      option<list<u8>>,
+  }
+
+  /// Fetch the caller's statement, score it in-enclave, persist and return the
+  /// band only. JSON in: { provider, months, assessment_id }.
+  assess: func(req: generic-input) -> result<list<u8>, string>;
+
+  /// Read a previously computed band. JSON in: { assessment_id }.
+  get-band: func(req: generic-input) -> result<list<u8>, string>;
+}

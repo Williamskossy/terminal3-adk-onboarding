@@ -1,0 +1,43 @@
+package z:remit-guard@0.1.0;
+
+/// Confidential remittance guard.
+///
+/// `quote-transfer` touches no PII: it prices a corridor via the provider's
+/// public quote endpoint and is safe to call speculatively.
+///
+/// `execute-payout` carries recipient PII, so it goes through
+/// `http-with-placeholders`: the contract templates `{{profile.<field>}}`
+/// markers into the request body and the host substitutes them from the
+/// calling user's profile at dispatch time. Plaintext PII never enters WASM
+/// memory, so neither this contract nor a compromised build of it can
+/// exfiltrate the recipient's identity.
+world remit-guard {
+  import host:tenant/tenant-context@1.0.0;
+  import host:interfaces/logging@2.1.0;
+  import host:interfaces/kv-store@2.1.0;
+  import host:interfaces/http@2.1.0;                    // quote (no PII)
+  import host:interfaces/http-with-placeholders@2.1.0;  // payout (PII via placeholders)
+
+  export contracts;
+}
+
+interface contracts {
+  /// Uniform 3-field envelope used by every node-callable contract.
+  record generic-input {
+    input:        option<list<u8>>,
+    user-profile: option<list<u8>>,
+    context:      option<list<u8>>,
+  }
+
+  /// Price a corridor. No PII. JSON in: { from, to, amount_minor }.
+  quote-transfer: func(req: generic-input) -> result<list<u8>, string>;
+
+  /// Execute a payout to the calling user's stored recipient details.
+  /// JSON in: { quote_id, amount_minor, currency, reference }.
+  /// Recipient identity is resolved host-side from the user profile.
+  execute-payout: func(req: generic-input) -> result<list<u8>, string>;
+
+  /// Read back a previously recorded payout receipt from tenant KV.
+  /// JSON in: { reference }.
+  get-receipt: func(req: generic-input) -> result<list<u8>, string>;
+}

@@ -270,5 +270,65 @@ the walkthrough can work around from the client side.
 control actions, a published SDK that sends it, or documentation of the config field that
 supplies it.
 
+---
+
+## 8. The docs tell you NOT to hex-encode the tenant DID — but you must, and their own reference repo does — `severity: high`
+
+**Where:** `get-started/walkthrough/write-contract`, "Reading secrets from the `secrets` KV map"
+
+The documented sample, comment included verbatim:
+
+```rust
+fn get_api_key() -> Result<String, String> {
+    // tenant_did() already returns the tid as a string — do not hex::encode it again.
+    // (Wrapping it in hex::encode a second time is a real bug some teams have hit:
+    // it silently produces a map path that doesn't match anything you created.)
+    let tid = tenant_context::tenant_did();
+    let map_name = format!("z:{}:secrets", tid);
+    ...
+}
+```
+
+Three problems:
+
+**1. It cannot compile.** `wit/deps/host-tenant-1.0.0/package.wit` declares:
+
+```wit
+/// Tenant DID under which this contract is running. The 20-byte
+/// raw `CompactDid` shape — same as user / organisation DIDs.
+tenant-did: func() -> list<u8>;
+```
+
+`list<u8>` binds to `Vec<u8>` in Rust, which implements neither `Display` nor `LowerHex`, so
+`format!("z:{}:secrets", tid)` is a compile error — not a silent misbehaviour.
+
+**2. The sponsor's own reference implementation does the opposite.** In the `z-tenant-flight`
+repo the docs tell you to clone, both `src/search.rs:182` and `src/booking.rs:171` read:
+
+```rust
+let map_name = alloc::format!("z:{}:secrets", hex::encode(&tid));
+```
+
+and `Cargo.toml:16` carries `hex = { version = "0.4", ... }` precisely for this.
+
+**3. The warning is inverted.** The comment cautions against the one thing that is required,
+and describes the correct approach as "a real bug some teams have hit". A developer who
+trusts the prose over the reference code will burn real time before doubting the docs.
+
+**Correct form:**
+
+```rust
+let tid = tenant_context::tenant_did();          // Vec<u8>, 20 raw bytes
+let map_name = format!("z:{}:secrets", hex::encode(&tid));
+```
+
+**Suggested fix:** replace the sample with the reference repo's version and delete the
+inverted warning. If the intent was to caution against double-encoding an *already hex*
+string obtained elsewhere, say that explicitly instead — it currently reads as a blanket
+"never hex-encode `tenant_did()`".
+
+Both extra contracts in this submission carry a comment at their `tenant_map_name` helper
+pointing here, since the correct form looks wrong against the published docs.
+
 <!-- Append further findings below as they occur. Keep the format:
      what I did / expected / got / fix. -->
