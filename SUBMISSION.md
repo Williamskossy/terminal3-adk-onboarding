@@ -189,7 +189,8 @@ published SDK that sends it, or documentation of the config field that supplies 
 
 ## 4. Findings
 
-Full detail with versions, exact errors, and fixes is in **`FINDINGS.md`** in the repo.
+All eight bugs are written out below, each with where it is, the exact error, and the fix that
+worked. The live log with full transcripts is **`FINDINGS.md`** in the repo.
 
 | # | Severity | Finding |
 |---|---|---|
@@ -202,34 +203,174 @@ Full detail with versions, exact errors, and fixes is in **`FINDINGS.md`** in th
 | 3 | Low | `cargo build` aborts on a slow connection with no guidance; presents as "the ADK build is broken". |
 | 4 | Trivial | `wasm-tools` is "optional" on one page and load-bearing on the next. |
 
-### The two worth acting on first
+### Every bug faced, in full
 
-**Finding 5 is a security issue, not just a docs gap.** The quickstart's `new T3nClient({
-wasmComponent, handlers })` throws `T3nConfigError: trustAnchor is required...`. The error
-message helpfully offers two options, and the *easy* one is `{ unsafe_trust_server: true }` —
-which **silently disables DKG attestation verification against a real node**. A developer
-who is blocked and wants to move on will reach for it. The correct answer exists in the SDK's
-own README but nothing in the docs points there:
+Ordered by severity. Each was recorded live while working, on Windows 11 + WSL2 Ubuntu 24.04,
+rustc 1.97.1, Node 22.23.2, SDK 4.39.1, cluster `testnet`.
 
-```typescript
-trustAnchor: await fetchTrustedManifest("testnet")   // "sandbox" | "testnet" | "production"
+---
+
+**#5 — BLOCKING · The documented Quickstart code does not run**
+*Where: `get-started/quickstart`, step 3 "Connect and authenticate"*
+
+Copy-pasting the documented `new T3nClient({ wasmComponent, handlers })` fails immediately:
+
+```
+T3nConfigError: T3nClient: `trustAnchor` is required and must be either a TrustAnchor
+({ expected_peer_ids, rtmr3_allowlist }) that pins the node's DKG attestation, or the
+explicit opt-out { unsafe_trust_server: true }.
+  code: 'CONFIG_ERROR', field: 'trustAnchor'
 ```
 
-Verified working: anchor fetched from `<node>/api/trust-manifest`, signature checked against
-the SDK-pinned operator key, 3 `expected_peer_ids`, 1 `rtmr3_allowlist` entry. **Putting this
-line in the quickstart removes the incentive to disable attestation.**
+`trustAnchor` appears **nowhere in any of the 13 ADK doc pages** — not the quickstart, not the
+reference, not `tips/common-errors`. The SDK's own README has the answer; nothing on the docs
+site points there.
 
-**Finding 8 will cost every contract author time.** The docs say:
+*Fix that worked:*
+
+```typescript
+import { fetchTrustedManifest } from "@terminal3/t3n-sdk";
+const t3n = new T3nClient({
+  trustAnchor: await fetchTrustedManifest("testnet"),   // "sandbox" | "testnet" | "production"
+  wasmComponent,
+  handlers: { EthSign: metamask_sign(address, undefined, T3N_API_KEY) },
+});
+```
+
+Verified: anchor fetched from `<node>/api/trust-manifest`, signature checked against the
+SDK-pinned operator key, 3 `expected_peer_ids`, 1 `rtmr3_allowlist` entry.
+
+**This is a security issue, not just a docs gap.** The error message offers two ways out, and
+the *easy* one — `{ unsafe_trust_server: true }` — **silently disables DKG attestation
+verification against a real node.** A developer who is blocked and wants to move on will reach
+for it. Putting `fetchTrustedManifest` in the quickstart removes the incentive to disable
+attestation, and it is the first code sample anyone runs.
+
+---
+
+**#7 — BLOCKING · Every control RPC is rejected by the node: `missing field 'script_name'`**
+*Where: `prerequisites/set-up-dev-env` and `walkthrough/register-contract`*
+
+Full analysis in §3 above. In short: both `tenant.tenant.me()` and
+`tenant.contracts.register({tail, version, wasm})` fail server-side with
+`Invalid action request: missing field 'script_name'` (`action.execute`, httpStatus -32602).
+Reproduced 6 times across 3 runs; the documented API exposes no parameter that could supply
+the field, and the string does not appear in the shipped SDK bundle at all. **This blocks
+walkthrough steps 3–5 entirely. Sponsor-confirmed and being fixed.**
+
+---
+
+**#8 — High · The docs tell you *not* to hex-encode the tenant DID — but you must**
+*Where: `walkthrough/write-contract`, "Reading secrets from the `secrets` KV map"*
+
+The documented sample, comment included verbatim:
 
 > `// tenant_did() already returns the tid as a string — do not hex::encode it again.`
 
-But `host-tenant-1.0.0/package.wit` declares `tenant-did: func() -> list<u8>` (20 raw bytes),
-so the documented `format!("z:{}:secrets", tid)` is a compile error — `Vec<u8>` has no
+But `host-tenant-1.0.0/package.wit` declares `tenant-did: func() -> list<u8>` — 20 raw bytes.
+So the documented `format!("z:{}:secrets", tid)` is a **compile error**: `Vec<u8>` has no
 `Display`. And `z-tenant-flight/src/search.rs:182`, in the repo the docs tell you to clone,
 does exactly what the comment forbids:
 
 ```rust
 let map_name = alloc::format!("z:{}:secrets", hex::encode(&tid));
+```
+
+The warning is inverted, and it will cost every contract author time. *Fix: delete the comment
+and show `hex::encode(&tid)`.*
+
+---
+
+**#6 — Medium · `tenant.me()` doesn't exist — it's `tenant.tenant.me()`**
+*Where: `prerequisites/set-up-dev-env` step 3; also `register-contract`'s troubleshooting table*
+
+The documented verification line `await tenant.me()` fails with
+`TypeError: tenant.me is not a function`. In 4.39.1, `me()` is declared on `TenantNamespace`,
+which `TenantClient` exposes as the readonly property `.tenant` — so the call is
+`tenant.tenant.me()`. The doubled name reads like a typo, which is probably how the docs came
+to drop one. *Fix: correct both pages, or add a `me()` delegate on `TenantClient`.*
+
+Note: fixing the spelling gets past the `TypeError` and straight into #7, so this verification
+step cannot currently succeed by any spelling.
+
+---
+
+**#1 — Medium · No Windows instructions anywhere in the Get Started path**
+*Where: `get-started/quickstart`, `prerequisites/set-up-dev-env`*
+
+Every command in onboarding is bash-only — `curl … | sh`, `export T3N_API_KEY=…`,
+`source "$HOME/.cargo/env"`. On Windows none of these work: there is no shell to pipe to,
+`export` is `$env:T3N_API_KEY = "…"`, and `source` doesn't exist. A Windows user has to
+independently know to use `rustup-init.exe`, or discover WSL.
+
+There is a subtler second trap: **WSL inherits the Windows `PATH`**, so in a fresh WSL shell
+`npm` resolves to the Windows `npm.cmd` through `/mnt/c` while `node` looks missing entirely.
+Following the quickstart in that state produces failures that look like SDK bugs.
+
+*Fix: one sentence — "on Windows, use WSL2 and install Node **inside** WSL" — avoids the whole
+class of problem.*
+
+---
+
+**#3 — Low (docs), high regional impact · `cargo build` aborts on a slow link with no guidance**
+*Where: `walkthrough/build-contract`*
+
+First build died after 8m21s, 12 of ~13 crates downloaded:
+
+```
+warning: spurious network error (3 tries remaining): transfer too slow:
+         failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+error: failed to download from `https://static.crates.io/crates/wit-component/0.243.0/download`
+```
+
+That is cargo's default `http.low-speed-limit` (10 B/s over 30 s) firing — not a T3N defect,
+but it *presents* as "the ADK build is broken", and anyone onboarding from a region with a slow
+link to crates.io will hit it.
+
+*Fix that worked:*
+
+```bash
+export CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=300
+export CARGO_HTTP_LOW_SPEED_LIMIT=1 CARGO_HTTP_MULTIPLEXING=false
+cargo fetch --target wasm32-wasip2                        # separately, so it's retryable
+cargo build --target wasm32-wasip2 --release --offline
+```
+
+Splitting `fetch` from `build` matters: a stall during a combined run discards compile progress
+too. *A short troubleshooting note on the build page would save a confusing 8-minute failure.*
+
+---
+
+**#2 — Low · Documented repo structure doesn't match the actual repo**
+*Where: `walkthrough/write-contract`, "Repository Structure"*
+
+The published tree omits two things the real `--depth 1` clone contains:
+
+- **`.cargo/config.toml`** — sets `build.target = "wasm32-wasip2"`. Never mentioned, but it is
+  precisely why `cargo build` produces WASM without `--target` in that repo. A reader copying
+  the layout into their own project and omitting it gets a **native** build instead.
+- **`wit/deps/host-outbox-1.0.0/`** — a third vendored host package the prose doesn't list
+  (it names only `host-interfaces-2.1.0` and `host-tenant-1.0.0`).
+
+*Fix: regenerate the tree from the real repo, plus one line on what `.cargo/config.toml` does.*
+
+---
+
+**#4 — Trivial · `wasm-tools` is "optional" on one page and load-bearing on the next**
+*Where: `prerequisites/set-up-dev-env` vs `walkthrough/build-contract`*
+
+Set-up marks it `# optional — inspect/verify the component`, but build-contract's "Verify the
+component interface" step is written as a normal step and only mentions installing it *after*
+showing the command that needs it — while noting the install "takes about 2 minutes with no
+progress output", which is exactly what you want to know beforehand.
+
+*Aside worth adding to the docs:* you can confirm you got a component rather than a bare core
+module without installing anything, straight from the 8-byte header:
+
+```bash
+xxd -l 8 -p target/wasm32-wasip2/release/*.wasm
+# 0061736d0d000100  -> component (layer=1)   <- what registration needs
+# 0061736d01000000  -> bare core module (layer=0)
 ```
 
 ---
