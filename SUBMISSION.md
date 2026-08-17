@@ -23,7 +23,7 @@ there, I documented eight findings and built two additional TEE contracts with r
 cases, so this submission covers the bonus criterion even though step 3 is unreachable.
 
 **The sponsor has since confirmed the blocker** — reported on Telegram 2026-08-17, answered
-*"ah yes… they're fixing it atm"*, with registration waived for this submission (§2). I
+*"ah yes… they're fixing it atm"*, with registration waived for this submission (§3). I
 re-tested after reporting it and it still reproduces, so the log trail now covers three
 independent runs.
 
@@ -42,7 +42,100 @@ independent runs.
 
 ---
 
-## 2. The blocker
+## 2. The walkthrough, step by step
+
+What I actually ran, in order, with the finding each step produced. Screenshot captions point
+at the image that evidences that step; the raw log behind every image is in `evidence/logs/`.
+
+### Step 0 — Claim an Agent ID and free tokens
+
+Signed in at [`go.terminal3.io/adk-community`](https://go.terminal3.io/adk-community) via SSO,
+which issued the API key and the tenant DID
+`did:t3n:039b91465f60d1a39e2297dd04db188a2cef4736`.
+
+Worth flagging for other developers: **the API key is displayed exactly once.** There is no
+"reveal again" on the claim page, so save it before leaving the tab.
+
+**Screenshot — the claim page with the Agent ID / DID issued.**
+
+**Screenshot — the token balance after claiming.**
+
+### Step 1 — Set up the dev environment
+
+`rustup` + the `wasm32-wasip2` target + Node 22. Two things bit here: every command in Get
+Started is bash-only with **no Windows path at all** (finding 1), so I moved to WSL2 Ubuntu
+24.04; and `cargo build` kept aborting on my connection until I raised cargo's network timeouts
+(finding 3) — which presents as "the ADK is broken" rather than "your link is slow".
+
+**Screenshot — `01-toolchain.png`: rustc 1.97.1, cargo, Node 22.23.2, `wasm32-wasip2` installed.**
+
+### Step 2 — Write the contract
+
+Cloned the reference contract the docs point to
+([`Terminal-3/z-tenant-flight`](https://github.com/Terminal-3/z-tenant-flight), v0.4.1) and read
+it against the walkthrough. The documented repo structure omits `.cargo/config.toml` — the file
+that actually makes `cargo build` target WASM — and one of the three vendored WIT packages
+(finding 2). The docs also tell you *not* to hex-encode the tenant DID when building a KV map
+name; you must, and their own reference repo does (finding 8, the one most likely to cost every
+contract author time).
+
+### Step 3 — Build the contract
+
+```bash
+cargo build --target wasm32-wasip2 --release
+xxd -l 8 -p target/wasm32-wasip2/release/z_tenant_flight.wasm   # 0061736d0d000100
+```
+
+That header is the check that matters: `0d000100` in bytes 5–8 means a **component** (layer=1),
+which is what registration requires, versus `01000000` for a bare core module. 197,904 bytes.
+
+**Screenshot — `02-build-contract.png`: the artifact, its component header, and its sha256.**
+
+### Step 4 — Connect and authenticate
+
+This is where the documented quickstart stops working. `new T3nClient({ wasmComponent, handlers })`
+throws `T3nConfigError: trustAnchor is required` — and `trustAnchor` appears on no ADK
+documentation page (finding 5). The correct value is in the SDK's own README:
+
+```typescript
+trustAnchor: await fetchTrustedManifest("testnet")
+```
+
+With that, the anchor fetched and signature-verified against the SDK-pinned operator key, and
+the node issued the DID. The docs' next call, `tenant.me()`, doesn't exist — it is
+`tenant.tenant.me()` (finding 6), and that call then failed server-side, which was the first
+sighting of the blocker.
+
+**Screenshot — `03-quickstart-register.png`: trust anchor verified → DID issued → the first
+`script_name` failures, with server-side request IDs.**
+
+### Step 5 — Register the contract ❌
+
+```
+RpcError: Invalid action request: missing field `script_name` at line 1 column 189
+```
+
+Blocked here, and not by anything fixable from the client (finding 7, §3). Re-tested after
+reporting it to the sponsor — still failing.
+
+**Screenshot — `06-registration-retry.png`: the re-test after the sponsor report, still blocked,
+two fresh request IDs.**
+
+### Steps 6–7 — Invoke and test ⬜
+
+Unreachable: both need a registered `contract_id`.
+
+### Bonus — two further contracts
+
+Rather than stop at a blocked step, I wrote two more TEE contracts with real use cases (§5),
+built both to valid components and unit-tested them natively.
+
+**Screenshot — `05-bonus-contracts.png`: all 30 tests passing by name, byte counts, component
+headers, sha256s and exported interfaces for both.**
+
+---
+
+## 3. The blocker
 
 Both control-plane calls fail server-side with the same complaint, at different payload
 offsets:
@@ -58,7 +151,7 @@ RpcError: Invalid action request: missing field `script_name` at line 1 column 1
 ```
 
 Reproduced **6 times across 3 runs**, spread over ~17 hours, with the node on an unchanged
-trust manifest (`1786457685`) throughout. All six request IDs are in §6 for log tracing.
+trust manifest (`1786457685`) throughout. All six request IDs are in §7 for log tracing.
 
 ### Confirmed by the sponsor
 
@@ -94,14 +187,14 @@ published SDK that sends it, or documentation of the config field that supplies 
 
 ---
 
-## 3. Findings
+## 4. Findings
 
 Full detail with versions, exact errors, and fixes is in **`FINDINGS.md`** in the repo.
 
 | # | Severity | Finding |
 |---|---|---|
 | **5** | **BLOCKING** | **The documented Quickstart code cannot run.** `T3nClient` requires a `trustAnchor` argument that appears on **no** ADK doc page. Also **security-relevant** — see below. |
-| **7** | **BLOCKING** | **Every control RPC rejected**: `missing field 'script_name'`. Blocks registration entirely. **Sponsor-confirmed and being fixed** (§2). |
+| **7** | **BLOCKING** | **Every control RPC rejected**: `missing field 'script_name'`. Blocks registration entirely. **Sponsor-confirmed and being fixed** (§3). |
 | **8** | High | **The docs tell you not to hex-encode the tenant DID — but you must.** The documented form doesn't compile, and their own reference repo hex-encodes. The warning is inverted. |
 | 6 | Medium | `tenant.me()` doesn't exist; it's `tenant.tenant.me()`. Also miscited in register-contract's troubleshooting table. |
 | 1 | Medium | No Windows instructions anywhere in Get Started — every command is bash-only. Plus a WSL `PATH` trap. |
@@ -141,10 +234,10 @@ let map_name = alloc::format!("z:{}:secrets", hex::encode(&tid));
 
 ---
 
-## 4. Beyond the first contract — two use cases, both built
+## 5. Beyond the first contract — two use cases, both built
 
 Both compile to valid WASM components against the real host WIT and pass native unit tests.
-Neither can be registered (§2), which is the only reason they are not deployed.
+Neither can be registered (§3), which is the only reason they are not deployed.
 
 ### A. `z-remit-guard` — confidential cross-border remittance
 
@@ -229,7 +322,7 @@ for forbidden in ["amount_minor","balance_after","transactions","age_days"] {
 
 ---
 
-## 5. Evidence
+## 6. Evidence
 
 Raw, unedited command output is in `evidence/logs/`; the PNGs in `evidence/screenshots/` are
 those same logs rendered for legibility. **The logs are the authoritative artifact** — every
@@ -259,7 +352,7 @@ clock, and the capture scripts say so in the log header.
 
 ---
 
-## 6. Request IDs for tracing
+## 7. Request IDs for tracing
 
 | Call | Request ID |
 |---|---|
@@ -274,7 +367,7 @@ Runs 1–2 are in `03-quickstart-and-register.log`; run 3 is in `06-registration
 
 ---
 
-## 7. Reproducing this
+## 8. Reproducing this
 
 ```bash
 cp .env.example .env             # paste your key from the claim page
@@ -293,7 +386,7 @@ On a slow link use `build-contract-retry.sh` (finding 3).
 
 ---
 
-## 8. What I would do next, given a working registration
+## 9. What I would do next, given a working registration
 
 1. Register `z-remit-guard`, create its `secrets` and `receipts` KV maps scoped to the
    returned `contract_id`, seed the provider key via the tenant SDK, and run the full

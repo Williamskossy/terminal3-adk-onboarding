@@ -60,7 +60,7 @@ can be registered while finding #7 stands, which is the only reason they are not
 
 Both include tests that assert the security property itself, not just the happy path: that
 every PII field in an outbound body is an unresolved placeholder, and that a serialised band
-contains no transaction data. See [`SUBMISSION.md` §4](./SUBMISSION.md) for the full use cases.
+contains no transaction data. See [`SUBMISSION.md` §5](./SUBMISSION.md) for the full use cases.
 
 ---
 
