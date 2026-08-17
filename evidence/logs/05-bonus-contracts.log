@@ -1,0 +1,97 @@
+# Bonus criterion: beyond the first contract — two additional TEE contracts
+# captured 2026-08-17 23:13:14 UTC
+# clock: system clock is unreliable on this host; stamps are anchored to an authoritative HTTP Date
+
+==================== z-remit-guard ====================
+
+$ cargo test --target x86_64-unknown-linux-gnu
+  warning: unused import: `alloc::vec::Vec`
+  warning: unused import: `alloc::vec::Vec`
+  warning: unused import: `alloc::vec::Vec`
+  running 13 tests
+  test payout::tests::accepts_valid_request ... ok
+  test payout::tests::body_carries_no_secret_namespace_markers ... ok
+  test payout::tests::rejects_reference_with_path_characters ... ok
+  test payout::tests::body_contains_only_placeholders_for_pii ... ok
+  test payout::tests::rejects_missing_quote_id ... ok
+  test quote::tests::rejects_bad_currency_code ... ok
+  test quote::tests::accepts_valid_request_and_builds_body ... ok
+  test receipt::tests::accepts_plain_reference ... ok
+  test receipt::tests::rejects_empty_reference ... ok
+  test receipt::tests::rejects_traversal_attempt ... ok
+  test quote::tests::rejects_identical_currencies ... ok
+  test quote::tests::rejects_zero_amount ... ok
+  test tests::contract_version_is_semver ... ok
+  test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+  running 1 test
+  test src/lib.rs - __export_remit_guard_impl (line 50) ... ok
+  test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+$ cargo build --target wasm32-wasip2 --release
+      Finished `release` profile [optimized] target(s) in 0.41s
+
+$ ls -l artifacts/z_remit_guard.wasm   # exact byte count
+  169073 bytes  (z_remit_guard.wasm)
+  168K  as du -h rounds it
+
+$ xxd -l 8 -p artifacts/z_remit_guard.wasm
+  0061736d0d000100
+  -> WASM COMPONENT (layer=1) — valid for registration
+
+$ sha256sum artifacts/z_remit_guard.wasm
+  2d99683b9a258d35be30211f684c17617bf3fe54af898ffe3cf468b858860c2d  z_remit_guard.wasm
+
+$ jco wit artifacts/z_remit_guard.wasm   # exported interface
+  world root {
+    (19 imports: host:tenant, host:interfaces/*, wasi:*)
+    export z:remit-guard/contracts@0.1.0;
+
+==================== z-credit-band ====================
+
+$ cargo test --target x86_64-unknown-linux-gnu
+  warning: unused import: `ToString`
+  warning: unused import: `alloc::vec::Vec`
+  running 15 tests
+  test assess::tests::accepts_valid_request ... ok
+  test assess::tests::rejects_id_with_path_characters ... ok
+  test band::tests::band_boundaries_match_score_ranges ... ok
+  test band::tests::better_aggregates_never_score_worse ... ok
+  test assess::tests::rejects_short_window ... ok
+  test assess::tests::statement_body_uses_only_placeholders_for_identity ... ok
+  test band::tests::buckets_are_coarse ... ok
+  test band::tests::score_is_deterministic ... ok
+  test band::tests::overdrafts_are_penalised_and_explained ... ok
+  test band::tests::serialised_band_leaks_no_transaction_detail ... ok
+  test band::tests::rejects_bad_currency ... ok
+  test band::tests::steady_earner_scores_top_band ... ok
+  test band::tests::thin_file_is_unscoreable ... ok
+  test band::tests::volatile_income_scores_lower_than_steady ... ok
+  test tests::contract_version_is_semver ... ok
+  test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+  running 1 test
+  test src/lib.rs - __export_credit_band_impl (line 53) ... ok
+  test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+$ cargo build --target wasm32-wasip2 --release
+      Finished `release` profile [optimized] target(s) in 0.39s
+
+$ ls -l artifacts/z_credit_band.wasm   # exact byte count
+  175219 bytes  (z_credit_band.wasm)
+  172K  as du -h rounds it
+
+$ xxd -l 8 -p artifacts/z_credit_band.wasm
+  0061736d0d000100
+  -> WASM COMPONENT (layer=1) — valid for registration
+
+$ sha256sum artifacts/z_credit_band.wasm
+  77ad6772cfc6b08035ca80452419bc5a3f2219203a0c8be2a7daf07f535764bb  z_credit_band.wasm
+
+$ jco wit artifacts/z_credit_band.wasm   # exported interface
+  world root {
+    (18 imports: host:tenant, host:interfaces/*, wasi:*)
+    export z:credit-band/contracts@0.1.0;
+
+==================== both artifacts ====================
+      175219 bytes  artifacts/z_credit_band.wasm
+      169073 bytes  artifacts/z_remit_guard.wasm
+      197904 bytes  artifacts/z_tenant_flight.wasm

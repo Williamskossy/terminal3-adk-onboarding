@@ -270,6 +270,33 @@ the walkthrough can work around from the client side.
 control actions, a published SDK that sends it, or documentation of the config field that
 supplies it.
 
+### ✅ Confirmed by the sponsor
+
+Reported to the sponsor on Telegram on **2026-08-17**. Response:
+
+> "ah yes. — they're fixing it atm so I'll keep you posted once the error is fixed!
+> just submit your did — it's ok, we understand the constraints"
+
+So this is an acknowledged server-side defect under active repair, not a caller error. The
+sponsor also waived the registration requirement for this submission.
+
+### Third reproduction, after the report
+
+Re-tested against the live node at **2026-08-17 22:55:25 UTC** (`06-registration-retry.log`).
+Still failing, same two call sites, same byte offsets, two fresh server-side request IDs:
+
+```
+tenant.tenant.me()      -> missing field `script_name` at line 1 column 105
+  requestId: 0b7d978c-4681-49cb-be4e-75e32f55895b
+
+contracts.register(...) -> missing field `script_name` at line 1 column 189
+  requestId: 7df094fe-6697-4abd-9286-352a565f907d
+```
+
+That makes **6 failures across 3 independent runs**, spread over ~17 hours, with the node on
+an unchanged trust manifest (`1786457685`) throughout. The fix had not yet landed on the
+`sg.testnet` cluster at the time of writing.
+
 ---
 
 ## 8. The docs tell you NOT to hex-encode the tenant DID — but you must, and their own reference repo does — `severity: high`

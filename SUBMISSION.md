@@ -22,6 +22,11 @@ blocker that makes contract registration impossible from any client**. Rather th
 there, I documented eight findings and built two additional TEE contracts with real use
 cases, so this submission covers the bonus criterion even though step 3 is unreachable.
 
+**The sponsor has since confirmed the blocker** — reported on Telegram 2026-08-17, answered
+*"ah yes… they're fixing it atm"*, with registration waived for this submission (§2). I
+re-tested after reporting it and it still reproduces, so the log trail now covers three
+independent runs.
+
 | Stage | Result |
 |---|---|
 | Claim API key + DID via SSO | ✅ |
@@ -30,7 +35,7 @@ cases, so this submission covers the bonus criterion even though step 3 is unrea
 | Set Up Dev Env — `TenantClient` | ⚠️ constructed; its documented verification call is broken (findings 6, 7) |
 | **Walkthrough 1** — write contract | ✅ |
 | **Walkthrough 2** — build contract | ✅ 194 KB WASM component, header `0061736d0d000100` |
-| **Walkthrough 3** — register contract | ❌ **blocked** — node rejects the SDK's own request |
+| **Walkthrough 3** — register contract | ❌ **blocked** — sponsor-confirmed server-side defect |
 | **Walkthrough 4** — invoke | ⬜ unreachable |
 | **Walkthrough 5** — test | ⬜ unreachable |
 | **Bonus** — beyond the first contract + use case | ✅ **two** further contracts built, 30 tests passing |
@@ -52,7 +57,20 @@ RpcError: Invalid action request: missing field `script_name` at line 1 column 1
   requestId: c18753da-5d80-4ab1-9676-1258623e4811      <- tenant.contracts.register(...)
 ```
 
-Reproduced **4 times across 2 runs**. All four request IDs are in §6 for log tracing.
+Reproduced **6 times across 3 runs**, spread over ~17 hours, with the node on an unchanged
+trust manifest (`1786457685`) throughout. All six request IDs are in §6 for log tracing.
+
+### Confirmed by the sponsor
+
+I reported this on Telegram on 2026-08-17. The sponsor's reply:
+
+> "ah yes. — they're fixing it atm so I'll keep you posted once the error is fixed!
+> just submit your did — it's ok, we understand the constraints"
+
+So it is an acknowledged server-side defect under active repair, and registration was waived
+for this submission. I re-ran the attempt **after** reporting it
+(`evidence/logs/06-registration-retry.log`, 22:55:25 UTC) and it still failed identically —
+the fix had not reached the `sg.testnet` cluster at the time of writing.
 
 **It is not a caller error:**
 
@@ -83,7 +101,7 @@ Full detail with versions, exact errors, and fixes is in **`FINDINGS.md`** in th
 | # | Severity | Finding |
 |---|---|---|
 | **5** | **BLOCKING** | **The documented Quickstart code cannot run.** `T3nClient` requires a `trustAnchor` argument that appears on **no** ADK doc page. Also **security-relevant** — see below. |
-| **7** | **BLOCKING** | **Every control RPC rejected**: `missing field 'script_name'`. Blocks registration entirely (§2). |
+| **7** | **BLOCKING** | **Every control RPC rejected**: `missing field 'script_name'`. Blocks registration entirely. **Sponsor-confirmed and being fixed** (§2). |
 | **8** | High | **The docs tell you not to hex-encode the tenant DID — but you must.** The documented form doesn't compile, and their own reference repo hex-encodes. The warning is inverted. |
 | 6 | Medium | `tenant.me()` doesn't exist; it's `tenant.tenant.me()`. Also miscited in register-contract's troubleshooting table. |
 | 1 | Medium | No Windows instructions anywhere in Get Started — every command is bash-only. Plus a WSL `PATH` trap. |
@@ -130,7 +148,7 @@ Neither can be registered (§2), which is the only reason they are not deployed.
 
 ### A. `z-remit-guard` — confidential cross-border remittance
 
-**168 KB component · 14 tests passing**
+**168 KB component (169,073 bytes) · 14 tests passing · exports `z:remit-guard/contracts@0.1.0`**
 
 | Export | PII | Host interface |
 |---|---|---|
@@ -159,7 +177,7 @@ infrastructure cannot make.
 
 ### B. `z-credit-band` — confidential credit assessment
 
-**172 KB component · 16 tests passing**
+**172 KB component (175,219 bytes) · 16 tests passing · exports `z:credit-band/contracts@0.1.0`**
 
 | Export | PII | Host interface |
 |---|---|---|
@@ -224,6 +242,20 @@ hand-edited. The capture script refuses to complete if the API key ever appears 
 | `02-build-contract.png` | build artifact, component header, sha256 |
 | `03-quickstart-register.png` | trust anchor verified → DID issued → both `script_name` failures with request IDs |
 | `04-node-sdk-versions.png` | node trust manifest, 4.39.1 is latest, `script_name` absent from the SDK bundle |
+| `05-bonus-contracts.png` | **all 30 tests passing by name**, exact byte counts, component headers, sha256s, exported interfaces for both bonus contracts |
+| `06-registration-retry.png` | the re-test after the sponsor report — still blocked, two fresh request IDs |
+
+Verifiable hashes of the three components:
+
+| Artifact | Bytes | sha256 |
+|---|---|---|
+| `z_tenant_flight.wasm` | 197,904 | `edf634e46265bdfcb1c236190b7a7d4110ff6952e04fcec32054ccc4cd69955d` |
+| `z_remit_guard.wasm` | 169,073 | `2d99683b9a258d35be30211f684c17617bf3fe54af898ffe3cf468b858860c2d` |
+| `z_credit_band.wasm` | 175,219 | `77ad6772cfc6b08035ca80452419bc5a3f2219203a0c8be2a7daf07f535764bb` |
+
+A note on the timestamps: this host's system clocks drifted after a crash mid-project, so
+every evidence stamp is anchored to an authoritative HTTP `Date` header rather than the local
+clock, and the capture scripts say so in the log header.
 
 ---
 
@@ -235,19 +267,27 @@ hand-edited. The capture script refuses to complete if the API key ever appears 
 | `contracts.register` — run 1 | `eb753b64-c2e6-4bfb-8d90-debbfd442097` |
 | `tenant.tenant.me()` — run 2 | `eee34a47-d631-47bf-9455-cc8f466dca30` |
 | `contracts.register` — run 2 | `c18753da-5d80-4ab1-9676-1258623e4811` |
+| `tenant.tenant.me()` — run 3, after the sponsor report | `0b7d978c-4681-49cb-be4e-75e32f55895b` |
+| `contracts.register` — run 3, after the sponsor report | `7df094fe-6697-4abd-9286-352a565f907d` |
+
+Runs 1–2 are in `03-quickstart-and-register.log`; run 3 is in `06-registration-retry.log`.
 
 ---
 
 ## 7. Reproducing this
 
 ```bash
-cp .env.example .env          # paste your key from the claim page
-bash install-toolchain.sh     # rustup + wasm32-wasip2 + node
-bash build-contract.sh        # clone + build the reference contract
-bash run-quickstart.sh        # connect, authenticate, attempt registration
-bash build-extra-contracts.sh # build + test both additional contracts
-bash capture-evidence.sh      # regenerate evidence/logs/
+cp .env.example .env             # paste your key from the claim page
+bash install-toolchain.sh        # rustup + wasm32-wasip2 + node
+bash build-contract.sh           # clone + build the reference contract
+bash run-quickstart.sh           # connect, authenticate, attempt registration
+bash build-extra-contracts.sh    # build + test both additional contracts
+bash capture-evidence.sh         # regenerate evidence/logs/01..04
+bash capture-bonus-evidence.sh   # regenerate evidence/logs/05..06
+bash render-evidence.sh          # logs -> evidence/html/ (then screenshot at the printed height)
 ```
+
+Both capture scripts refuse to finish if the API key ever appears in a captured log.
 
 On a slow link use `build-contract-retry.sh` (finding 3).
 
@@ -265,3 +305,7 @@ On a slow link use `build-contract-retry.sh` (finding 3).
 4. Test the version-shadowing warning in the register-contract docs: register `0.1.1` at the
    same tail and check whether calls pinning `0.1.0` still route to the pinned version. The
    docs flag this as unverified ("several teams have found…"), and it is worth confirming.
+
+The sponsor has offered to tell me when the `script_name` fix ships. Every step above is
+already scripted (`run-quickstart.sh`, `capture-bonus-evidence.sh`), so re-testing on the
+fixed node is one command, and I am happy to do it and report back.
