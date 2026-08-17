@@ -3,7 +3,7 @@
 **Bounty:** [Create Agent ID, claim free tokens, & deploy first RUST contract on the network](https://superteam.fun/earn/listing/ai-id) · sponsor **LOL ventures**
 **Submitted by:** RayVen
 **Repo:** https://github.com/Williamskossy/terminal3-adk-onboarding
-**Date:** 17 August 2026
+**Date:** 18 August 2026
 
 | | |
 |---|---|
