@@ -137,8 +137,6 @@ xxd -l 8 -p target/wasm32-wasip2/release/*.wasm
 
 ---
 
----
-
 ## 5. The documented Quickstart code does not run — `trustAnchor` is required and never mentioned — `severity: BLOCKING`
 
 **Where:** `get-started/quickstart`, step 3 ("Connect and authenticate")
